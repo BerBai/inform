@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	deviceKey = "4SZWHSrYXLQw5Z6GAvUZ2V"
+	deviceKey = "your bark key code"
 )
 
 func TestBark(t *testing.T) {
