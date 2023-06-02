@@ -94,20 +94,61 @@ type postData struct {
 	Sound     string `json:"sound,omitempty"`
 	Icon      string `json:"icon,omitempty"`
 	Group     string `json:"group,omitempty"`
-	URL       string `json:"pushURL,omitempty"`
+	URL       string `json:"url,omitempty"`
 }
 
-func (s *Service) send(ctx context.Context, serverURL, subject, content string) (err error) {
+// postDataOption is the optional data to send to the bark server
+type postDataOption func(*postDataOptions)
+type postDataOptions struct {
+	Badge int    `json:"badge,omitempty"`
+	Sound string `json:"sound,omitempty"`
+	Icon  string `json:"icon,omitempty"`
+	Group string `json:"group,omitempty"`
+	URL   string `json:"url,omitempty"`
+}
+
+func WithBadge(b int) postDataOption {
+	return func(o *postDataOptions) {
+		o.Badge = b
+	}
+}
+
+func WithSound(s string) postDataOption {
+	return func(o *postDataOptions) {
+		o.Sound = s
+	}
+}
+
+func WithIcon(i string) postDataOption {
+	return func(o *postDataOptions) {
+		o.Icon = i
+	}
+}
+
+func WithGroup(g string) postDataOption {
+	return func(o *postDataOptions) {
+		o.Group = g
+	}
+}
+
+func WithURL(u string) postDataOption {
+	return func(o *postDataOptions) {
+		o.URL = u
+	}
+}
+
+// defaultPostDatatOptions is the default data to send to the bark server
+var defaultPostDatatOptions = postDataOptions{
+	Badge: 1,
+	Sound: "shake.caf",
+	Icon:  "",
+	Group: "",
+	URL:   "",
+}
+
+func (s *Service) send(ctx context.Context, serverURL string, message postData) (err error) {
 	if serverURL == "" {
 		return errors.New("server url is empty")
-	}
-
-	// Marshal the message to post
-	message := &postData{
-		DeviceKey: s.deviceKey,
-		Title:     subject,
-		Body:      content,
-		Sound:     "alarm.caf",
 	}
 
 	messageJSON, err := json.Marshal(message)
@@ -146,9 +187,26 @@ func (s *Service) send(ctx context.Context, serverURL, subject, content string) 
 }
 
 // Send takes a message subject and a message content and sends them to bark application.
-func (s *Service) Send(ctx context.Context, subject, content string) error {
+func (s *Service) Send(ctx context.Context, subject, content string, opts ...postDataOption) error {
 	if s.client == nil {
 		return errors.New("client is nil")
+	}
+
+	options := defaultPostDatatOptions
+	for _, o := range opts {
+		o(&options)
+	}
+
+	// Marshal the message to post
+	message := &postData{
+		DeviceKey: s.deviceKey,
+		Title:     subject,
+		Body:      content,
+		URL:       options.URL,
+		Badge:     options.Badge,
+		Sound:     options.Sound,
+		Icon:      options.Icon,
+		Group:     options.Group,
 	}
 
 	for _, serverURL := range s.serverURLs {
@@ -156,7 +214,7 @@ func (s *Service) Send(ctx context.Context, subject, content string) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
-			err := s.send(ctx, serverURL, subject, content)
+			err := s.send(ctx, serverURL, *message)
 			if err != nil {
 				return errors.Wrapf(err, "failed to send message to bark server %q", serverURL)
 			}
